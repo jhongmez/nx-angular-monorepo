@@ -11,6 +11,9 @@ export class MoviesService {
   movies = signal<Movie[]>([]);
   trendingMovies = signal<Movie[]>([]);
   selectedMovie = signal<Movie | null>(null);
+  currentPage = signal<number>(1);
+  hasMorePages = signal<boolean>(false);
+  isLoading = signal<boolean>(false);
 
   private readonly _apiKey = environment.apiKey;
   private readonly _apiUrl = environment.apiUrl;
@@ -18,7 +21,7 @@ export class MoviesService {
   private readonly _http = inject(HttpClient);
 
   constructor() {
-    this._getMovies();
+    this.getMovies();
   }
 
   getMovieById(movieId: string): Observable<MovieResponse | null> {
@@ -34,13 +37,22 @@ export class MoviesService {
       );
   }
 
-  private _getMovies(): void {
+  getMovies(): void {
     this._http
       .get<MovieResponse>(
         `${this._apiUrl}/movie/popular?api_key=${this._apiKey}`
       )
       .pipe(
-        tap((response) => this.movies.set(response.results)),
+        tap((response) => {
+          const currentMovies = this.movies();
+          // Aca se le agrega un nuevo array con los resultados de la respuesta
+          // y se le agrega al array actual
+          this.movies.set([...currentMovies, ...response.results]);
+          this.hasMorePages.set(response.page < response.total_pages);
+          // Usamos el update para que nos devuelva el valor actual y no el valor anterior
+          this.currentPage.update((currentPage) => currentPage + 1);
+          this.isLoading.set(false);
+        }),
         catchError((error) => {
           console.error('Error fetching movies', error);
           return of([]);
